@@ -1,0 +1,64 @@
+<rml>
+<head>
+    <title>Strategic Construction Tracker</title>
+    <link rel="stylesheet" href="strategic_construction_tracker.rcss" type="text/rcss" />
+</head>
+<body id="strategic-construction-tracker-widget">
+    <div id="strategic-panel" class="panel" data-model="strategic_construction_tracker">
+        <!-- Title Bar -->
+        <div class="title-bar" id="title-bar" onmousedown="widget:StartDrag(event)" onmouseup="widget:EndDrag(event)">
+            <div class="title-content">
+                <span class="title-icon">●</span>
+                <span class="title-text">Strategic Construction</span>
+            </div>
+            <div class="collapse-button">
+                {{collapse_symbol}}
+            </div>
+        </div>
+
+
+        <!-- Main Content Area -->
+        <div class="content-area" data-if="!collapsed">
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state" data-if="constructions.size == 0">
+                <span class="empty-text">No strategic constructions</span>
+            </div>
+
+            <!-- Construction List -->
+            <div id="construction-list" class="construction-list">
+                <div data-for="team : teams" class="team-section">
+                    <!-- Team Header -->
+                    <div class="team-header team-{{team.id}}" id="team-header-{{team.id}}">
+                        <div class="team-accent team-accent-{{team.id}}" id="team-accent-{{team.id}}" data-style-background-color="team.accent_color"></div>
+                        <span class="team-name">{{team.name}}</span>
+                        <div class="team-border team-border-{{team.id}}" id="team-border-{{team.id}}" data-style-background-color="team.border_color"></div>
+                    </div>
+
+                    <!-- Team Constructions -->
+                    <div data-for="construction : team.constructions" class="construction-entry construction-team-{{construction.team}}" id="construction-{{construction.unit_id}}" onclick="widget:SelectConstruction(event)">
+                        <span class="unit-id" style="display: none;">{{construction.unit_id}}</span>
+                        <div class="entry-accent entry-accent-{{construction.team}}" id="entry-accent-{{construction.unit_id}}" data-style-background-color="team.accent_color"></div>
+                        <div class="entry-content">
+                            <span class="unit-name">{{construction.unit_name}}</span>
+                            <div class="progress-container">
+                                <div class="progress-grid">
+                                    <!-- Background layer: 10 empty squares -->
+                                    <div class="progress-background">
+                                        <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
+                                        <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
+                                    </div>
+                                    <!-- Foreground layer: filled squares based on progress -->
+                                    <div class="progress-foreground">
+                                        <div data-for="square : construction.progress_squares" data-class-filled="square.is_filled" class="filled" data-style-background-color="team.accent_color"></div>
+                                    </div>
+                                </div>
+                                <span class="progress-text">{{construction.progress_percent}}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</rml>

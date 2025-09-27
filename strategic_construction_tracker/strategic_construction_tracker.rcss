@@ -1,0 +1,249 @@
+/* Strategic Construction Tracker - RMLui Compatible CSS */
+
+body, div,
+h1, h2, h3, h4,
+h5, h6, p,
+hr, pre,
+tabset tabs
+{ display: block; }
+
+h1 { font-size: 2em; margin: .67em 0; }
+h2 { font-size: 1.5em; margin: .75em 0; }
+h3 { font-size: 1.17em; margin: .83em 0; }
+h4, p { margin: 1.12em 0; }
+h5 { font-size: .83em; margin: 1.5em 0; }
+h6 { font-size: .75em; margin: 1.67em 0; }
+h1, h2, h3, h4, h5, h6, strong { font-weight: bold; }
+em { font-style: italic; }
+pre { white-space: pre; }
+hr { border-width: 1px; }
+table { box-sizing: border-box; display: table; }
+tr { box-sizing: border-box; display: table-row; }
+td { box-sizing: border-box; display: table-cell; }
+col { box-sizing: border-box; display: table-column; }
+colgroup  { display: table-column-group; }
+thead, tbody, tfoot { display: table-row-group; }
+
+#strategic-construction-tracker-widget {
+    position: absolute;
+    top: 100px;
+    left: 50px;
+    width: 280px;
+    min-height: 45px;
+    display: flex;
+}
+
+.panel {
+    width: 280px;
+    min-height: 45px;
+    background-color: #0D0D0DEB;
+    font-family: Exo 2;
+}
+
+.title-bar {
+    height: 25px;
+    background-color: #1A1F26CC;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 8px;
+    cursor: move;
+}
+
+.title-content {
+    display: flex;
+    align-items: center;
+}
+
+.title-icon {
+    color: #8099B3CC;
+    margin-right: 6px;
+    font-size: 12px;
+}
+
+.title-text {
+    color: #CCE6FF;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.collapse-button {
+    color: #8099B3CC;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+
+.content-area {
+    padding: 4px;
+    padding-top: 1px;
+}
+
+.empty-state {
+    margin: 0 -8px;
+}
+
+.empty-text {
+    color: #999999;
+    font-size: 11px;
+    text-align: center;
+    padding: 8px;
+}
+
+.construction-list {
+    margin-bottom: 1px;
+}
+
+.team-section {
+    margin-bottom: 1px;
+}
+
+.team-header {
+    height: 20px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: bold;
+    margin-bottom: 0px;
+}
+
+.team-accent {
+    width: 4px;
+    height: 100%;
+    margin-right: 6px;
+}
+
+.team-name {
+    color: white;
+}
+
+.team-border {
+    flex: 1;
+    height: 1px;
+    margin-left: 6px;
+}
+
+.construction-entry {
+    height: 18px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    margin-bottom: 0px;
+    font-size: 11px;
+    color: white;
+    cursor: pointer;
+}
+
+.construction-entry:hover {
+    background-color: #262E38E6;
+    cursor: pointer;
+}
+
+.entry-accent {
+    width: 4px;
+    height: 18px;
+    margin-right: 6px;
+}
+
+.unit-type {
+    width: 20px;
+    height: 16px;
+    background-color: #1A1F26CC;
+    color: #CCE6FF;
+    font-size: 8px;
+    font-weight: bold;
+    text-align: center;
+    line-height: 16px;
+    margin-right: 6px;
+    flex-shrink: 0;
+    border-radius: 2px;
+}
+
+.entry-content {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.unit-name {
+    font-weight: bold;
+    flex: 1;
+}
+
+.progress-container {
+    display: flex;
+    align-items: center;
+    margin-left: 8px;
+    gap: 6px;
+}
+
+.progress-grid {
+    width: 34px;  /* (6px * 5) + (1px margin * 4) = 34px */
+    height: 13px; /* (6px * 2) + (1px margin * 1) = 13px */
+    position: relative;
+}
+
+.progress-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 34px;
+    height: 13px;
+}
+
+.progress-foreground {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 34px;
+    height: 13px;
+}
+
+.empty {
+    background-color: #333333;
+    width: 6px;
+    height: 6px;
+    float: left;
+    margin-right: 1px;
+    margin-bottom: 1px;
+}
+
+.filled {
+    background-color: #4A90E2;
+    width: 6px;
+    height: 6px;
+    float: left;
+    margin-right: 1px;
+    margin-bottom: 1px;
+    display: none; /* Hidden by default */
+}
+
+/* Show filled square when data-class-filled is applied */
+.filled.filled {
+    display: block;
+}
+
+.empty:nth-child(5n), .filled:nth-child(5n) {
+    margin-right: 0;
+}
+
+.empty:nth-child(n+6), .filled:nth-child(n+6) {
+    margin-bottom: 0;
+}
+
+.progress-text {
+    color: #D9F2FF;
+    font-size: 10px;
+    min-width: 30px;
+    text-align: right;
+}
+
+.title-bar:hover {
+    background-color: #222932CC;
+}
+
+.title-bar:active {
+    background-color: #293340CC;
+}
