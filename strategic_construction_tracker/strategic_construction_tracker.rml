@@ -11,7 +11,7 @@
                 <span class="title-icon">●</span>
                 <span class="title-text">Strategic Construction</span>
             </div>
-            <div class="collapse-button">
+            <div class="collapse-button" onclick="widget:ToggleCollapsed(event)">
                 {{collapse_symbol}}
             </div>
         </div>

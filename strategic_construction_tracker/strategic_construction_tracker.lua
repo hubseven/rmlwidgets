@@ -152,6 +152,15 @@ local function SavePosition()
     Spring.SetConfigString("StrategicConstructionTracker_Position", configString)
 end
 
+local function LoadCollapsedState()
+    local configString = Spring.GetConfigString("StrategicConstructionTracker_Collapsed", "false")
+    collapsed = (configString == "true")
+end
+
+local function SaveCollapsedState()
+    Spring.SetConfigString("StrategicConstructionTracker_Collapsed", tostring(collapsed))
+end
+
 local function UpdateDocumentPosition()
     if document then
         local body = document:GetElementById("strategic-construction-tracker-widget")
@@ -166,6 +175,7 @@ end
 function widget:Initialize()
     Spring.Echo(WIDGET_NAME .. ": Initializing widget...")
     LoadPosition()
+    LoadCollapsedState()
 
     myTeamID = Spring.GetMyTeamID()
     local spec, fullV = Spring.GetSpectatingState()
@@ -236,6 +246,16 @@ function widget:EndDrag(event)
         widgetState.isDragging = false
         SavePosition()
     end
+    return true
+end
+
+function widget:ToggleCollapsed(event)
+    collapsed = not collapsed
+    if dm_handle then
+        dm_handle.collapsed = collapsed
+        dm_handle.collapse_symbol = collapsed and "+" or "−"
+    end
+    SaveCollapsedState()
     return true
 end
 

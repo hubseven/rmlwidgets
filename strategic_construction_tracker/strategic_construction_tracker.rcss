@@ -26,8 +26,6 @@ thead, tbody, tfoot { display: table-row-group; }
 
 #strategic-construction-tracker-widget {
     position: absolute;
-    top: 100px;
-    left: 50px;
     width: 280px;
     min-height: 45px;
     display: flex;
@@ -72,6 +70,14 @@ thead, tbody, tfoot { display: table-row-group; }
     font-size: 14px;
     cursor: pointer;
     padding: 2px 4px;
+}
+
+.collapse-button:hover {
+    color: #CCE6FF;
+}
+
+.collapse-button:active {
+    color: #FFFFFF;
 }
 
 .content-area {
