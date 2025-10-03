@@ -26,13 +26,13 @@ thead, tbody, tfoot { display: table-row-group; }
 
 #strategic-construction-tracker-widget {
     position: absolute;
-    width: 280px;
+    width: 130px;
     min-height: 45px;
     display: flex;
 }
 
 .panel {
-    width: 280px;
+    width: 130px;
     min-height: 45px;
     background-color: #0D0D0DEB;
     font-family: Exo 2;
@@ -54,9 +54,9 @@ thead, tbody, tfoot { display: table-row-group; }
 }
 
 .title-icon {
-    color: #8099B3CC;
+    width: 16px;
+    height: 16px;
     margin-right: 6px;
-    font-size: 12px;
 }
 
 .title-text {
@@ -131,14 +131,15 @@ thead, tbody, tfoot { display: table-row-group; }
 }
 
 .construction-entry {
-    height: 18px;
+    height: 24px;
     display: flex;
     align-items: center;
-    padding: 0 6px;
+    padding: 2px 6px;
     margin-bottom: 0px;
     font-size: 11px;
     color: white;
     cursor: pointer;
+    position: relative;
 }
 
 .construction-entry:hover {
@@ -148,7 +149,7 @@ thead, tbody, tfoot { display: table-row-group; }
 
 .entry-accent {
     width: 4px;
-    height: 18px;
+    height: 24px;
     margin-right: 6px;
 }
 
@@ -171,6 +172,13 @@ thead, tbody, tfoot { display: table-row-group; }
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.unit-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 6px;
+    flex-shrink: 0;
 }
 
 .unit-name {
@@ -244,6 +252,49 @@ thead, tbody, tfoot { display: table-row-group; }
     font-size: 10px;
     min-width: 30px;
     text-align: right;
+}
+
+/* Tooltip styles */
+.tooltip {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: 0;
+    margin-left: 8px;
+    background-color: #0D0D0DEB;
+    border: 1px solid #4A90E2;
+    padding: 8px;
+    min-width: 180px;
+    z-index: 1000;
+}
+
+.construction-entry:hover .tooltip {
+    display: flex;
+}
+
+.tooltip-buildpic {
+    width: 48px;
+    height: 48px;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.tooltip-text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.tooltip-unit-name {
+    color: #CCE6FF;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.tooltip-progress {
+    color: #8099B3CC;
+    font-size: 10px;
 }
 
 .title-bar:hover {

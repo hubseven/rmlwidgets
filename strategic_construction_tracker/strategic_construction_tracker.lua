@@ -108,6 +108,9 @@ local spGetMyTeamID = Spring.GetMyTeamID
 local spGetPlayerInfo = Spring.GetPlayerInfo
 local spGetAllUnits = Spring.GetAllUnits
 
+-- Load iconTypes
+local iconTypes = VFS.Include("gamedata/icontypes.lua")
+
 -- Widget state
 local isSpectator = false
 local fullView = false
@@ -382,12 +385,14 @@ function UpdateRMLuiData()
         totalConstructions = totalConstructions + 1
         data.unit_id = unitID
         data.unit_name = data.unitName
-
+        data.unit_def_id = data.unitDefID
+        local unitDef = UnitDefs[data.unitDefID]
+        data.unit_internal_name = unitDef and unitDef.name or ""
+        data.build_pic = unitDef and unitDef.buildPic or ""
+        local iconTypeName = unitDef and unitDef.iconType or ""
+        local iconData = iconTypes and iconTypes[iconTypeName]
+        data.icon_path = iconData and iconData.bitmap or ""
         data.progress_percent = math.floor(data.lastProgress * 100)
-
-        data.pos_x = data.position.x
-        data.pos_y = data.position.y
-        data.pos_z = data.position.z
 
         data.progress_squares = {}
         local filledSquares = math.floor(data.progress_percent / 10)
@@ -488,7 +493,7 @@ function widget:GameFrame()
         local vsx, vsy = Spring.GetViewGeometry()
         local cssY = vsy - newY
 
-        newX = math.max(0, math.min(newX, vsx - 280))
+        newX = math.max(0, math.min(newX, vsx - 130))
         cssY = math.max(0, math.min(cssY, vsy - 45))
 
         if math.abs(newX - widgetPosX) > 1 or math.abs(cssY - widgetPosY) > 1 then

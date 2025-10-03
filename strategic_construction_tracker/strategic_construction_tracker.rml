@@ -8,8 +8,8 @@
         <!-- Title Bar -->
         <div class="title-bar" id="title-bar" onmousedown="widget:StartDrag(event)" onmouseup="widget:EndDrag(event)">
             <div class="title-content">
-                <span class="title-icon">●</span>
-                <span class="title-text">Strategic Construction</span>
+                <texture class="title-icon" src="icons/worker.png"/>
+                <span class="title-text">SCT</span>
             </div>
             <div class="collapse-button" onclick="widget:ToggleCollapsed(event)">
                 {{collapse_symbol}}
@@ -21,7 +21,7 @@
         <div class="content-area" data-if="!collapsed">
             <!-- Empty State -->
             <div id="empty-state" class="empty-state" data-if="constructions.size == 0">
-                <span class="empty-text">No strategic constructions</span>
+                <span class="empty-text">None</span>
             </div>
 
             <!-- Construction List -->
@@ -38,8 +38,10 @@
                     <div data-for="construction : team.constructions" class="construction-entry construction-team-{{construction.team}}" id="construction-{{construction.unit_id}}" onclick="widget:SelectConstruction(event)">
                         <span class="unit-id" style="display: none;">{{construction.unit_id}}</span>
                         <div class="entry-accent entry-accent-{{construction.team}}" id="entry-accent-{{construction.unit_id}}" data-style-background-color="team.accent_color"></div>
+
+                        <!-- Main compact display -->
                         <div class="entry-content">
-                            <span class="unit-name">{{construction.unit_name}}</span>
+                            <texture class="unit-icon" data-attr-src="construction.icon_path"/>
                             <div class="progress-container">
                                 <div class="progress-grid">
                                     <!-- Background layer: 10 empty squares -->
@@ -53,6 +55,15 @@
                                     </div>
                                 </div>
                                 <span class="progress-text">{{construction.progress_percent}}%</span>
+                            </div>
+                        </div>
+
+                        <!-- Tooltip -->
+                        <div class="tooltip">
+                            <texture class="tooltip-buildpic" data-attr-src="'#' + construction.unit_def_id"/>
+                            <div class="tooltip-text">
+                                <span class="tooltip-unit-name">{{construction.unit_name}}</span>
+                                <span class="tooltip-progress">{{construction.progress_percent}}% Complete</span>
                             </div>
                         </div>
                     </div>
