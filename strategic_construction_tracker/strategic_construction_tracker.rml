@@ -16,6 +16,16 @@
             </div>
         </div>
 
+        <!-- Category Filters -->
+        <div class="category-filters" data-if="!collapsed">
+            <div data-for="category : categories" class="category-filter" data-class-active="category.active" data-attr-data-category="category.id" onclick="widget:ToggleCategoryFilter(event)">
+                <texture class="category-icon" data-attr-src="category.icon"/>
+                <div class="category-progress-bar">
+                    <div class="category-progress-fill" data-attr-style="'width: ' + (category.progress * 100) + '%'"></div>
+                </div>
+                <span class="category-count">{{category.count}}</span>
+            </div>
+        </div>
 
         <!-- Main Content Area -->
         <div class="content-area" data-if="!collapsed">

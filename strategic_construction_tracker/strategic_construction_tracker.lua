@@ -24,6 +24,20 @@ end
 
 
 
+-- Build categories (matching BAR's gridmenu system)
+local BUILDCAT_ECONOMY = Spring.I18N and Spring.I18N("ui.buildMenu.category_econ") or "Economy"
+local BUILDCAT_COMBAT = Spring.I18N and Spring.I18N("ui.buildMenu.category_combat") or "Combat"
+local BUILDCAT_UTILITY = Spring.I18N and Spring.I18N("ui.buildMenu.category_utility") or "Utility"
+local BUILDCAT_PRODUCTION = Spring.I18N and Spring.I18N("ui.buildMenu.category_production") or "Build"
+
+-- Category icons (matching BAR's gridmenu system)
+local CATEGORY_ICONS = {
+	economy = "LuaUI/Images/groupicons/energy.png",
+	combat = "LuaUI/Images/groupicons/weapon.png",
+	utility = "LuaUI/Images/groupicons/util.png",
+	build = "LuaUI/Images/groupicons/builder.png",
+}
+
 -- Important buildings/units to track
 local TRACKED_BUILDINGS_LIST = {
     -- === COMMANDERS ===
@@ -97,6 +111,49 @@ for _, unitName in ipairs(TRACKED_BUILDINGS_LIST) do
     TRACKED_BUILDINGS[unitName] = true
 end
 
+-- Dynamically build unitgroup to category mapping from UnitDefs
+local UNITGROUP_TO_CATEGORY = {}
+local function BuildCategoryMappings()
+	UNITGROUP_TO_CATEGORY = {}
+
+	for unitDefID, unitDef in pairs(UnitDefs) do
+		if unitDef.customParams and unitDef.customParams.unitgroup then
+			local unitgroup = unitDef.customParams.unitgroup
+
+			-- Skip if already categorized
+			if not UNITGROUP_TO_CATEGORY[unitgroup] then
+				-- Determine category based on unit characteristics
+				local category = nil
+
+				-- Economy: energy production, metal extraction, converters
+				if unitDef.energyMake and unitDef.energyMake > 0 then
+					category = "economy"
+				elseif unitDef.extractsMetal and unitDef.extractsMetal > 0 then
+					category = "economy"
+				elseif unitgroup:match("energy") or unitgroup:match("metal") or unitgroup:match("converter") then
+					category = "economy"
+
+				-- Combat: weapons, defense
+				elseif #unitDef.weapons > 0 or unitgroup:match("weapon") or unitgroup:match("defense") or unitgroup:match("nuke") or unitgroup:match("aa") then
+					category = "combat"
+
+				-- Build: factories, builders
+				elseif unitDef.isBuilder or unitgroup:match("builder") or unitgroup:match("factory") then
+					category = "build"
+
+				-- Utility: everything else (radar, jammers, etc)
+				else
+					category = "utility"
+				end
+
+				if category then
+					UNITGROUP_TO_CATEGORY[unitgroup] = category
+				end
+			end
+		end
+	end
+end
+
 -- Spring API shortcuts
 local spGetUnitHealth = Spring.GetUnitHealth
 local spGetUnitDefID = Spring.GetUnitDefID
@@ -129,6 +186,14 @@ local document
 local dm_handle
 local panelVisible = true
 local collapsed = false
+
+-- Category filter state
+local activeCategories = {
+	economy = true,
+	combat = true,
+	utility = true,
+	build = true,
+}
 
 
 -- Widget state for drag operations
@@ -164,6 +229,24 @@ local function SaveCollapsedState()
     Spring.SetConfigString("StrategicConstructionTracker_Collapsed", tostring(collapsed))
 end
 
+local function LoadCategoryFilters()
+    local configString = Spring.GetConfigString("StrategicConstructionTracker_Filters", "economy,combat,utility,build")
+    activeCategories = {economy = false, combat = false, utility = false, build = false}
+    for category in configString:gmatch("[^,]+") do
+        activeCategories[category] = true
+    end
+end
+
+local function SaveCategoryFilters()
+    local filters = {}
+    for category, active in pairs(activeCategories) do
+        if active then
+            table.insert(filters, category)
+        end
+    end
+    Spring.SetConfigString("StrategicConstructionTracker_Filters", table.concat(filters, ","))
+end
+
 local function UpdateDocumentPosition()
     if document then
         local body = document:GetElementById("strategic-construction-tracker-widget")
@@ -174,11 +257,38 @@ local function UpdateDocumentPosition()
     end
 end
 
+local function BuildCategoriesArray(includeProgress)
+    local categories = {
+        {id = "economy", name = BUILDCAT_ECONOMY, icon = CATEGORY_ICONS.economy, active = activeCategories.economy},
+        {id = "combat", name = BUILDCAT_COMBAT, icon = CATEGORY_ICONS.combat, active = activeCategories.combat},
+        {id = "utility", name = BUILDCAT_UTILITY, icon = CATEGORY_ICONS.utility, active = activeCategories.utility},
+        {id = "build", name = BUILDCAT_PRODUCTION, icon = CATEGORY_ICONS.build, active = activeCategories.build},
+    }
+
+    -- Add progress values if provided
+    if includeProgress then
+        for i, cat in ipairs(categories) do
+            cat.count = includeProgress[cat.id].count or 0
+            cat.progress = includeProgress[cat.id].progress or 0
+        end
+    end
+
+    return categories
+end
+
 
 function widget:Initialize()
     Spring.Echo(WIDGET_NAME .. ": Initializing widget...")
+
+    -- Build category mappings dynamically from UnitDefs
+    BuildCategoryMappings()
+    local count = 0
+    for _ in pairs(UNITGROUP_TO_CATEGORY) do count = count + 1 end
+    Spring.Echo(WIDGET_NAME .. ": Mapped " .. count .. " unitgroups to categories")
+
     LoadPosition()
     LoadCollapsedState()
+    LoadCategoryFilters()
 
     myTeamID = Spring.GetMyTeamID()
     local spec, fullV = Spring.GetSpectatingState()
@@ -197,7 +307,8 @@ function widget:Initialize()
         collapsed = collapsed,
         collapse_symbol = collapsed and "+" or "−",
         teams = {},
-        constructions = {size = 0}
+        constructions = {size = 0},
+        categories = BuildCategoriesArray()
     }
 
     dm_handle = widget.rmlContext:OpenDataModel(MODEL_NAME, initialModel)
@@ -262,6 +373,24 @@ function widget:ToggleCollapsed(event)
     return true
 end
 
+function widget:ToggleCategoryFilter(event)
+    local element = event.current_element
+    if not element then
+        return false
+    end
+
+    local categoryId = element:GetAttribute("data-category")
+    if not categoryId then
+        return false
+    end
+
+    activeCategories[categoryId] = not activeCategories[categoryId]
+
+    SaveCategoryFilters()
+    UpdateRMLuiData()
+    return true
+end
+
 
 function widget:SelectConstruction(event)
     local element = event.current_element
@@ -306,6 +435,20 @@ local function GetUnitDisplayName(unitDefID)
     end
 
     return displayName
+end
+
+local function GetUnitCategory(unitDefID)
+    local unitDef = UnitDefs[unitDefID]
+    if not unitDef or not unitDef.customParams then
+        return nil
+    end
+
+    local unitgroup = unitDef.customParams.unitgroup
+    if not unitgroup then
+        return nil
+    end
+
+    return UNITGROUP_TO_CATEGORY[unitgroup]
 end
 
 function Scan()
@@ -378,50 +521,95 @@ function UpdateRMLuiData()
     dm_handle.collapsed = collapsed
     dm_handle.collapse_symbol = collapsed and "+" or "−"
 
+    -- Count constructions per category and calculate average progress
+    local categoryCounts = {
+        economy = 0,
+        combat = 0,
+        utility = 0,
+        build = 0,
+    }
+
+    local categoryProgress = {
+        economy = {total = 0, count = 0},
+        combat = {total = 0, count = 0},
+        utility = {total = 0, count = 0},
+        build = {total = 0, count = 0},
+    }
+
+    for unitID, data in pairs(trackedConstructions) do
+        local unitCategory = GetUnitCategory(data.unitDefID)
+        if unitCategory and categoryCounts[unitCategory] then
+            categoryCounts[unitCategory] = categoryCounts[unitCategory] + 1
+            categoryProgress[unitCategory].total = categoryProgress[unitCategory].total + (data.lastProgress or 0)
+            categoryProgress[unitCategory].count = categoryProgress[unitCategory].count + 1
+        end
+    end
+
+    -- Calculate average progress per category and prepare data for BuildCategoriesArray
+    local categoryData = {}
+    for category, stats in pairs(categoryProgress) do
+        categoryData[category] = {
+            count = categoryCounts[category],
+            progress = stats.count > 0 and (stats.total / stats.count) or 0
+        }
+    end
+
+    -- Update category filter states with counts and progress
+    dm_handle.categories = BuildCategoriesArray(categoryData)
+
     local teamGroups = {}
     local totalConstructions = 0
 
     for unitID, data in pairs(trackedConstructions) do
-        totalConstructions = totalConstructions + 1
-        data.unit_id = unitID
-        data.unit_name = data.unitName
-        data.unit_def_id = data.unitDefID
-        local unitDef = UnitDefs[data.unitDefID]
-        data.unit_internal_name = unitDef and unitDef.name or ""
-        data.build_pic = unitDef and unitDef.buildPic or ""
-        local iconTypeName = unitDef and unitDef.iconType or ""
-        local iconData = iconTypes and iconTypes[iconTypeName]
-        data.icon_path = iconData and iconData.bitmap or ""
-        data.progress_percent = math.floor(data.lastProgress * 100)
+        -- Check category filter
+        local unitCategory = GetUnitCategory(data.unitDefID)
+        if not unitCategory or activeCategories[unitCategory] then
+            totalConstructions = totalConstructions + 1
+            data.unit_id = unitID
+            data.unit_name = data.unitName
+            data.unit_def_id = data.unitDefID
+            local unitDef = UnitDefs[data.unitDefID]
+            data.unit_internal_name = unitDef and unitDef.name or ""
+            -- Try to get buildPic path if it exists
+            data.build_pic = unitDef and unitDef.buildPic or ""
+            data.build_pic_lower = data.build_pic:lower()
 
-        data.progress_squares = {}
-        local filledSquares = math.floor(data.progress_percent / 10)
-        for i = 1, 10 do
-            if i <= filledSquares then
-                data.progress_squares[i] = {is_filled = true}
-            else
-                data.progress_squares[i] = {is_filled = false}
+            -- Get icon path from iconTypes table
+            local iconTypeName = unitDef and unitDef.iconType or ""
+            local iconData = iconTypes and iconTypes[iconTypeName]
+            data.icon_path = iconData and iconData.bitmap or ""
+
+            data.progress_percent = math.floor(data.lastProgress * 100)
+
+            data.progress_squares = {}
+            local filledSquares = math.floor(data.progress_percent / 10)
+            for i = 1, 10 do
+                if i <= filledSquares then
+                    data.progress_squares[i] = {is_filled = true}
+                else
+                    data.progress_squares[i] = {is_filled = false}
+                end
             end
+
+            local r = math.floor(data.teamColor[1] * 255)
+            local g = math.floor(data.teamColor[2] * 255)
+            local b = math.floor(data.teamColor[3] * 255)
+
+            data.team_color = string.format("rgb(%d,%d,%d)", r, g, b)
+
+            if not teamGroups[data.team] then
+                teamGroups[data.team] = {
+                    id = data.team,
+                    name = data.teamName,
+                    color = data.team_color,
+                    border_color = data.team_color,
+                    accent_color = data.team_color,
+                    constructions = {}
+                }
+            end
+
+            table.insert(teamGroups[data.team].constructions, data)
         end
-
-        local r = math.floor(data.teamColor[1] * 255)
-        local g = math.floor(data.teamColor[2] * 255)
-        local b = math.floor(data.teamColor[3] * 255)
-
-        data.team_color = string.format("rgb(%d,%d,%d)", r, g, b)
-
-        if not teamGroups[data.team] then
-            teamGroups[data.team] = {
-                id = data.team,
-                name = data.teamName,
-                color = data.team_color,
-                border_color = data.team_color,
-                accent_color = data.team_color,
-                constructions = {}
-            }
-        end
-
-        table.insert(teamGroups[data.team].constructions, data)
     end
 
     -- Sort constructions within each team by progress
