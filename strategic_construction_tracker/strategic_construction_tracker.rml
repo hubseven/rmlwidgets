@@ -34,46 +34,78 @@
                 <span class="empty-text">None</span>
             </div>
 
-            <!-- Construction List -->
-            <div id="construction-list" class="construction-list">
-                <div data-for="team : teams" class="team-section">
-                    <!-- Team Header -->
-                    <div class="team-header team-{{team.id}}" id="team-header-{{team.id}}">
-                        <div class="team-accent team-accent-{{team.id}}" id="team-accent-{{team.id}}" data-style-background-color="team.accent_color"></div>
+            <!-- Team List -->
+            <div id="team-list" class="team-list">
+                <div data-for="team : teams" class="team-row" id="team-row-{{team.id}}">
+                    <!-- Team Header Row -->
+                    <div class="team-header-row">
+                        <div class="team-accent" data-style-background-color="team.accent_color"></div>
                         <span class="team-name">{{team.name}}</span>
-                        <div class="team-border team-border-{{team.id}}" id="team-border-{{team.id}}" data-style-background-color="team.border_color"></div>
                     </div>
 
-                    <!-- Team Constructions -->
-                    <div data-for="construction : team.constructions" class="construction-entry construction-team-{{construction.team}}" id="construction-{{construction.unit_id}}" onclick="widget:SelectConstruction(event)">
-                        <span class="unit-id" style="display: none;">{{construction.unit_id}}</span>
-                        <div class="entry-accent entry-accent-{{construction.team}}" id="entry-accent-{{construction.unit_id}}" data-style-background-color="team.accent_color"></div>
+                    <!-- Icon Row -->
+                    <div class="team-icon-row">
+                        <div class="team-accent" data-style-background-color="team.accent_color"></div>
+                        <div class="icon-list">
+                            <div data-for="icon : team.aggregated_icons" class="icon-wrapper">
+                                <texture class="team-unit-icon" data-attr-src="icon.icon_path"/>
+                                <span class="icon-count-badge" data-if="icon.count > 1">{{icon.count}}</span>
+                            </div>
+                        </div>
+                        <!-- Aggregate Progress Grid -->
+                        <div class="team-progress-container">
+                            <div class="progress-grid">
+                                <div class="progress-background">
+                                    <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
+                                    <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
+                                </div>
+                                <div class="progress-foreground">
+                                    <div data-for="square : team.avg_progress_squares" class="filled" data-style-background-color="team.accent_color"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                        <!-- Main compact display -->
-                        <div class="entry-content">
-                            <texture class="unit-icon" data-attr-src="construction.icon_path"/>
-                            <div class="progress-container">
-                                <div class="progress-grid">
-                                    <!-- Background layer: 10 empty squares -->
-                                    <div class="progress-background">
-                                        <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
-                                        <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
-                                    </div>
-                                    <!-- Foreground layer: filled squares based on progress -->
-                                    <div class="progress-foreground">
-                                        <div data-for="square : construction.progress_squares" data-class-filled="square.is_filled" class="filled" data-style-background-color="team.accent_color"></div>
+                    <div class="hover-menu" data-attr-id="'hover-menu-' + team.id" data-style-border-left-color="team.accent_color">
+                        <!-- Active Constructions Section -->
+                        <div class="hover-menu-section" data-if="team.has_active">
+                            <div class="hover-menu-section-title">Active</div>
+                            <div data-for="construction : team.active_constructions" class="construction-detail" data-attr-data-unit-id="construction.unit_id" data-attr-data-is-completed="construction.is_completed" onclick="widget:SelectConstruction(event)">
+                                <texture class="detail-buildpic" data-attr-src="'#' + construction.unit_def_id"/>
+                                <div class="detail-info">
+                                    <span class="detail-unit-name">{{construction.unit_name}}</span>
+                                    <div class="detail-progress">
+                                        <div class="progress-grid">
+                                            <div class="progress-background">
+                                                <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
+                                                <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
+                                            </div>
+                                            <div class="progress-foreground">
+                                                <div data-for="square : construction.progress_squares" class="filled" data-style-background-color="team.accent_color"></div>
+                                            </div>
+                                        </div>
+                                        <span class="progress-text">{{construction.progress_percent}}%</span>
                                     </div>
                                 </div>
-                                <span class="progress-text">{{construction.progress_percent}}%</span>
                             </div>
                         </div>
 
-                        <!-- Tooltip -->
-                        <div class="tooltip">
-                            <texture class="tooltip-buildpic" data-attr-src="'#' + construction.unit_def_id"/>
-                            <div class="tooltip-text">
-                                <span class="tooltip-unit-name">{{construction.unit_name}}</span>
-                                <span class="tooltip-progress">{{construction.progress_percent}}% Complete</span>
+                        <!-- Completed Section -->
+                        <div class="hover-menu-section" data-if="team.has_completed">
+                            <div class="hover-menu-section-header">
+                                <div class="hover-menu-section-title">Completed</div>
+                                <span class="completed-count">{{team.completed_count}}</span>
+                            </div>
+                            <!-- Unique completed constructions -->
+                            <div data-for="construction : team.unique_completed" class="construction-detail completed" data-attr-data-unit-def-id="construction.unit_def_id" data-attr-data-team-id="team.id" data-is-completed="true" onclick="widget:SelectConstruction(event)">
+                                <texture class="detail-buildpic" data-attr-src="'#' + construction.unit_def_id"/>
+                                <div class="detail-info">
+                                    <span class="detail-unit-name">{{construction.unit_name}}</span>
+                                    <div class="detail-progress">
+                                        <span class="completion-checkmark">✓</span>
+                                        <span class="completed-type-count" data-if="construction.count > 1">×{{construction.count}}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

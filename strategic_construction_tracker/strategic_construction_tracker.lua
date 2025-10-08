@@ -22,15 +22,13 @@ function widget:GetInfo()
     }
 end
 
-
-
--- Build categories (matching BAR's gridmenu system)
+-- Build categories
 local BUILDCAT_ECONOMY = Spring.I18N and Spring.I18N("ui.buildMenu.category_econ") or "Economy"
 local BUILDCAT_COMBAT = Spring.I18N and Spring.I18N("ui.buildMenu.category_combat") or "Combat"
 local BUILDCAT_UTILITY = Spring.I18N and Spring.I18N("ui.buildMenu.category_utility") or "Utility"
 local BUILDCAT_PRODUCTION = Spring.I18N and Spring.I18N("ui.buildMenu.category_production") or "Build"
 
--- Category icons (matching BAR's gridmenu system)
+-- Category icons
 local CATEGORY_ICONS = {
 	economy = "LuaUI/Images/groupicons/energy.png",
 	combat = "LuaUI/Images/groupicons/weapon.png",
@@ -40,10 +38,6 @@ local CATEGORY_ICONS = {
 
 -- Important buildings/units to track
 local TRACKED_BUILDINGS_LIST = {
-    -- === COMMANDERS ===
-    "armcom", "corcom", "legcom",
-    "armdecom", "cordecom", "legdecom",
-
     -- === FUSION PLANTS ===
     "armfus", "corfus", "legfus",
     "armafus", "corafus", "legafus",
@@ -174,7 +168,10 @@ local fullView = false
 local myTeamID = 0
 local frameCounter = 0
 local trackedConstructions = {}
+local completedConstructions = {}
 local nextEntryID = 1
+local gameStarted = false
+local lastUIHiddenState = false
 
 
 -- Position state
@@ -186,6 +183,7 @@ local document
 local dm_handle
 local panelVisible = true
 local collapsed = false
+local dataDirty = false
 
 -- Category filter state
 local activeCategories = {
@@ -195,6 +193,16 @@ local activeCategories = {
 	build = true,
 }
 
+-- Selection visualization state
+local selectedUnitsToHighlight = {}
+local selectionCenter = nil
+
+-- Animation state for wall stripes
+local animationTime = 0
+
+-- Hover menu interaction tracking
+local isHoverMenuOpen = false
+local hoverMenuScrollPositions = {}
 
 -- Widget state for drag operations
 local widgetState = {
@@ -259,10 +267,10 @@ end
 
 local function BuildCategoriesArray(includeProgress)
     local categories = {
-        {id = "economy", name = BUILDCAT_ECONOMY, icon = CATEGORY_ICONS.economy, active = activeCategories.economy},
-        {id = "combat", name = BUILDCAT_COMBAT, icon = CATEGORY_ICONS.combat, active = activeCategories.combat},
-        {id = "utility", name = BUILDCAT_UTILITY, icon = CATEGORY_ICONS.utility, active = activeCategories.utility},
-        {id = "build", name = BUILDCAT_PRODUCTION, icon = CATEGORY_ICONS.build, active = activeCategories.build},
+        {id = "economy", name = BUILDCAT_ECONOMY, icon = CATEGORY_ICONS.economy, active = activeCategories.economy, count = 0, progress = 0},
+        {id = "combat", name = BUILDCAT_COMBAT, icon = CATEGORY_ICONS.combat, active = activeCategories.combat, count = 0, progress = 0},
+        {id = "utility", name = BUILDCAT_UTILITY, icon = CATEGORY_ICONS.utility, active = activeCategories.utility, count = 0, progress = 0},
+        {id = "build", name = BUILDCAT_PRODUCTION, icon = CATEGORY_ICONS.build, active = activeCategories.build, count = 0, progress = 0},
     }
 
     -- Add progress values if provided
@@ -327,7 +335,17 @@ function widget:Initialize()
     end
 
     document:ReloadStyleSheet()
-    document:Show()
+
+    local gameFrame = Spring.GetGameFrame()
+    if gameFrame and gameFrame > 0 then
+        gameStarted = true
+        if not Spring.IsGUIHidden() then
+            document:Show()
+            Spring.Echo(WIDGET_NAME .. ": Widget loaded mid-game, showing UI")
+        end
+    else
+        Spring.Echo(WIDGET_NAME .. ": Widget loaded in lobby, waiting for game start")
+    end
 
     UpdateDocumentPosition()
 
@@ -339,15 +357,43 @@ function widget:Initialize()
     return true
 end
 
+function widget:GameStart()
+    gameStarted = true
+    if document and not Spring.IsGUIHidden() then
+        document:Show()
+        Spring.Echo(WIDGET_NAME .. ": Game started, showing UI")
+    end
+end
+
+function widget:Update()
+    if not document or not gameStarted then
+        return
+    end
+
+    local isHidden = Spring.IsGUIHidden()
+    local isInMenu = false
+    if WG then
+        isInMenu = (WG.PauseScreen and WG.PauseScreen.IsActive and WG.PauseScreen.IsActive())
+            or (WG.Chili and WG.Chili.Screen0 and WG.Chili.Screen0.focusedControl)
+    end
+
+    local shouldHide = isHidden or isInMenu
+
+    if shouldHide ~= lastUIHiddenState then
+        lastUIHiddenState = shouldHide
+        if shouldHide then
+            document:Hide()
+        else
+            document:Show()
+        end
+    end
+end
+
 function widget:StartDrag(event)
     local mx, my = Spring.GetMouseState()
     local vsx, vsy = Spring.GetViewGeometry()
 
     widgetState.isDragging = true
-
-    -- Calculate offset from widget position to mouse position
-    -- Widget position is in CSS coordinates (top-down), but Spring mouse is bottom-up
-    -- Convert widget CSS Y to Spring Y for proper offset calculation
     local springWidgetY = vsy - widgetPosY
     widgetState.dragOffsetX = mx - widgetPosX
     widgetState.dragOffsetY = my - springWidgetY
@@ -398,29 +444,134 @@ function widget:SelectConstruction(event)
         return false
     end
 
-    -- Find the hidden unit-id span
-    local unitIdSpan = element:GetElementsByTagName("span")[1]
-    if not unitIdSpan then
+    local unitID = tonumber(element:GetAttribute("data-unit-id"))
+    local isCompleted = element:GetAttribute("data-is-completed") == "true"
+
+    if isCompleted and not unitID then
+        local unitDefID = tonumber(element:GetAttribute("data-unit-def-id"))
+        local teamID = tonumber(element:GetAttribute("data-team-id"))
+
+        if unitDefID and teamID then
+            local validUnitIDs = {}
+            local minX, minZ, maxX, maxZ = math.huge, math.huge, -math.huge, -math.huge
+            local unitName = ""
+            local positionsFound = 0
+
+            for _, completed in ipairs(completedConstructions) do
+                if completed.unitDefID == unitDefID and completed.team == teamID then
+                    if Spring.ValidUnitID(completed.unitID) then
+                        table.insert(validUnitIDs, completed.unitID)
+                        unitName = completed.unitName
+
+                        local x, y, z = Spring.GetUnitPosition(completed.unitID)
+                        if x then
+                            minX = math.min(minX, x)
+                            maxX = math.max(maxX, x)
+                            minZ = math.min(minZ, z)
+                            maxZ = math.max(maxZ, z)
+                            positionsFound = positionsFound + 1
+                        end
+                    end
+                end
+            end
+
+            if #validUnitIDs > 0 then
+                selectedUnitsToHighlight = {}
+                local sumX, sumY, sumZ = 0, 0, 0
+                local minX, minZ, maxX, maxZ = math.huge, math.huge, -math.huge, -math.huge
+                local teamColor = nil
+                for _, completed in ipairs(completedConstructions) do
+                    if completed.unitDefID == unitDefID and completed.team == teamID then
+                        teamColor = completed.teamColor
+                        break
+                    end
+                end
+
+                for _, completed in ipairs(completedConstructions) do
+                    if completed.unitDefID == unitDefID and completed.team == teamID then
+                        if Spring.ValidUnitID(completed.unitID) then
+                            local x, y, z = Spring.GetUnitPosition(completed.unitID)
+                            if x then
+                                local unitDef = UnitDefs[unitDefID]
+                                local radius = unitDef and unitDef.radius or 50
+
+                                selectedUnitsToHighlight[completed.unitID] = {
+                                    x = x,
+                                    y = y,
+                                    z = z,
+                                    radius = radius,
+                                    teamColor = teamColor or {1, 1, 1},
+                                    unitName = unitName
+                                }
+                                sumX = sumX + x
+                                sumY = sumY + y
+                                sumZ = sumZ + z
+                                minX = math.min(minX, x)
+                                maxX = math.max(maxX, x)
+                                minZ = math.min(minZ, z)
+                                maxZ = math.max(maxZ, z)
+                            end
+                        end
+                    end
+                end
+
+                local count = 0
+                for _ in pairs(selectedUnitsToHighlight) do count = count + 1 end
+
+                if count > 0 then
+                    selectionCenter = {
+                        x = sumX / count,
+                        y = sumY / count,
+                        z = sumZ / count
+                    }
+
+                    Spring.Echo(string.format("[SCT] Selected %d x %s", count, unitName))
+
+                    Spring.SelectUnitArray(validUnitIDs)
+                    Spring.SendCommands("viewselection")
+                end
+
+                return true
+            end
+        end
+    elseif unitID then
+        if Spring.ValidUnitID(unitID) then
+            Spring.SelectUnitArray({unitID})
+            Spring.SendCommands("viewselection")
+            return true
+        end
+    end
+
+    return false
+end
+
+function widget:SelectCompletedGroup(event)
+    local element = event.current_element
+    if not element then
         return false
     end
 
-    local unitID = tonumber(unitIdSpan.inner_rml)
-    if not unitID then
+    local teamID = tonumber(element:GetAttribute("data-team-id"))
+    if not teamID then
         return false
     end
 
-    -- Direct lookup and camera movement
-    local constructionData = trackedConstructions[unitID]
-    if not constructionData or not constructionData.position then
-        return false
+    local validUnitIDs = {}
+    for _, completedData in ipairs(completedConstructions) do
+        if completedData.team == teamID then
+            if Spring.ValidUnitID(completedData.unitID) then
+                table.insert(validUnitIDs, completedData.unitID)
+            end
+        end
     end
 
-    local x, y, z = constructionData.position.x, constructionData.position.y, constructionData.position.z
+    if #validUnitIDs > 0 then
+        Spring.SelectUnitArray(validUnitIDs)
+        Spring.SendCommands("viewselection")
+        return true
+    end
 
-    Spring.SetCameraTarget(x, y, z, 0.8)
-    Spring.SelectUnitArray({unitID})
-
-    return true
+    return false
 end
 
 local function GetUnitDisplayName(unitDefID)
@@ -461,7 +612,9 @@ function Scan()
         if unitDef and GetUnitDisplayName(unitDefID) and ShouldTrackUnit(unitID, unitTeam) then
             local _, _, _, _, buildProgress = spGetUnitHealth(unitID)
             if buildProgress and buildProgress < 1.0 then
-                AddConstructionToTracker(unitID, unitDefID, unitTeam, nil)
+                if not trackedConstructions[unitID] then
+                    AddConstructionToTracker(unitID, unitDefID, unitTeam, nil)
+                end
             end
         end
     end
@@ -515,8 +668,32 @@ function GetTeamDisplayName(teamID)
     return "Team " .. teamID
 end
 
+local function SaveHoverMenuScrollPositions()
+    if not document then return end
+
+    for teamID, _ in pairs(trackedConstructions) do
+        local hoverMenu = document:GetElementById("hover-menu-" .. teamID)
+        if hoverMenu then
+            hoverMenuScrollPositions[teamID] = hoverMenu.scroll_top
+        end
+    end
+end
+
+local function RestoreHoverMenuScrollPositions()
+    if not document then return end
+
+    for teamID, scrollTop in pairs(hoverMenuScrollPositions) do
+        local hoverMenu = document:GetElementById("hover-menu-" .. teamID)
+        if hoverMenu then
+            hoverMenu.scroll_top = scrollTop
+        end
+    end
+end
+
 function UpdateRMLuiData()
     if not dm_handle then return end
+
+    SaveHoverMenuScrollPositions()
 
     dm_handle.collapsed = collapsed
     dm_handle.collapse_symbol = collapsed and "+" or "−"
@@ -565,63 +742,195 @@ function UpdateRMLuiData()
         local unitCategory = GetUnitCategory(data.unitDefID)
         if not unitCategory or activeCategories[unitCategory] then
             totalConstructions = totalConstructions + 1
-            data.unit_id = unitID
-            data.unit_name = data.unitName
-            data.unit_def_id = data.unitDefID
+
+            local constructionData = {
+                unit_id = unitID or 0,
+                unit_name = data.unitName or "Unknown",
+                unit_def_id = data.unitDefID or 0,
+                is_completed = false
+            }
+
             local unitDef = UnitDefs[data.unitDefID]
-            data.unit_internal_name = unitDef and unitDef.name or ""
-            -- Try to get buildPic path if it exists
-            data.build_pic = unitDef and unitDef.buildPic or ""
-            data.build_pic_lower = data.build_pic:lower()
+            constructionData.unit_internal_name = unitDef and unitDef.name or ""
+            constructionData.build_pic = unitDef and unitDef.buildPic or ""
+            constructionData.build_pic_lower = constructionData.build_pic:lower()
 
             -- Get icon path from iconTypes table
             local iconTypeName = unitDef and unitDef.iconType or ""
             local iconData = iconTypes and iconTypes[iconTypeName]
-            data.icon_path = iconData and iconData.bitmap or ""
+            constructionData.icon_path = iconData and iconData.bitmap or ""
 
-            data.progress_percent = math.floor(data.lastProgress * 100)
+            constructionData.progress_percent = math.floor((data.lastProgress or 0) * 100)
 
-            data.progress_squares = {}
-            local filledSquares = math.floor(data.progress_percent / 10)
-            for i = 1, 10 do
-                if i <= filledSquares then
-                    data.progress_squares[i] = {is_filled = true}
-                else
-                    data.progress_squares[i] = {is_filled = false}
-                end
+            constructionData.progress_squares = {}
+            local filledSquares = math.floor(constructionData.progress_percent / 10)
+            for i = 1, filledSquares do
+                table.insert(constructionData.progress_squares, {is_filled = true})
             end
 
-            local r = math.floor(data.teamColor[1] * 255)
-            local g = math.floor(data.teamColor[2] * 255)
-            local b = math.floor(data.teamColor[3] * 255)
-
-            data.team_color = string.format("rgb(%d,%d,%d)", r, g, b)
+            local teamColor = data.teamColor or {1, 1, 1}
+            local r = math.floor(teamColor[1] * 255)
+            local g = math.floor(teamColor[2] * 255)
+            local b = math.floor(teamColor[3] * 255)
+            constructionData.team_color = string.format("rgb(%d,%d,%d)", r, g, b)
 
             if not teamGroups[data.team] then
                 teamGroups[data.team] = {
                     id = data.team,
                     name = data.teamName,
-                    color = data.team_color,
-                    border_color = data.team_color,
-                    accent_color = data.team_color,
-                    constructions = {}
+                    color = constructionData.team_color,
+                    border_color = constructionData.team_color,
+                    accent_color = constructionData.team_color,
+                    active_constructions = {},
+                    completed_constructions = {},
+                    total_count = 0,
+                    avg_progress = 0,
+                    total_progress = 0
                 }
             end
 
-            table.insert(teamGroups[data.team].constructions, data)
+            table.insert(teamGroups[data.team].active_constructions, constructionData)
+            teamGroups[data.team].total_progress = teamGroups[data.team].total_progress + data.lastProgress
         end
     end
 
-    -- Sort constructions within each team by progress
+    for _, completedData in ipairs(completedConstructions) do
+        if not teamGroups[completedData.team] then
+            local r = math.floor(completedData.teamColor[1] * 255)
+            local g = math.floor(completedData.teamColor[2] * 255)
+            local b = math.floor(completedData.teamColor[3] * 255)
+            local teamColor = string.format("rgb(%d,%d,%d)", r, g, b)
+
+            teamGroups[completedData.team] = {
+                id = completedData.team,
+                name = completedData.teamName,
+                color = teamColor,
+                border_color = teamColor,
+                accent_color = teamColor,
+                active_constructions = {},
+                completed_constructions = {},
+                total_count = 0,
+                avg_progress = 0,
+                total_progress = 0
+            }
+        end
+
+        local unitDef = UnitDefs[completedData.unitDefID]
+        local iconTypeName = unitDef and unitDef.iconType or ""
+        local iconData = iconTypes and iconTypes[iconTypeName]
+
+        local completedTeamColor = completedData.teamColor or {1, 1, 1}
+        local r = math.floor(completedTeamColor[1] * 255)
+        local g = math.floor(completedTeamColor[2] * 255)
+        local b = math.floor(completedTeamColor[3] * 255)
+
+        table.insert(teamGroups[completedData.team].completed_constructions, {
+            unit_id = completedData.unitID or 0,
+            unit_name = completedData.unitName or "Unknown",
+            unit_def_id = completedData.unitDefID or 0,
+            unit_internal_name = unitDef and unitDef.name or "",
+            build_pic = unitDef and unitDef.buildPic or "",
+            icon_path = iconData and iconData.bitmap or "",
+            team_color = string.format("rgb(%d,%d,%d)", r, g, b),
+            completion_time = completedData.completionTime or 0,
+            is_completed = true,
+            progress_percent = 100,
+            progress_squares = {
+                {is_filled = true}, {is_filled = true}, {is_filled = true}, {is_filled = true}, {is_filled = true},
+                {is_filled = true}, {is_filled = true}, {is_filled = true}, {is_filled = true}, {is_filled = true}
+            },
+            position = completedData.position or {x = 0, y = 0, z = 0}
+        })
+    end
+
     for teamID, teamData in pairs(teamGroups) do
-        table.sort(teamData.constructions, function(a, b)
-            return a.lastProgress < b.lastProgress
+        local activeCount = #teamData.active_constructions
+        local completedCount = #teamData.completed_constructions
+
+        teamData.total_count = activeCount
+        teamData.completed_count = completedCount
+        teamData.has_active = activeCount > 0
+        teamData.has_completed = completedCount > 0
+
+        if activeCount > 0 then
+            teamData.avg_progress = teamData.total_progress / activeCount
+            teamData.avg_progress_percent = math.floor(teamData.avg_progress * 100)
+        else
+            teamData.avg_progress = 0
+            teamData.avg_progress_percent = 0
+        end
+
+        teamData.avg_progress_squares = {}
+        local filledSquares = math.floor(teamData.avg_progress_percent / 10)
+        for i = 1, filledSquares do
+            table.insert(teamData.avg_progress_squares, {is_filled = true})
+        end
+
+        local iconMap = {}
+        for _, construction in ipairs(teamData.active_constructions) do
+            local key = construction.unit_def_id or 0
+            if key ~= 0 and not iconMap[key] then
+                iconMap[key] = {
+                    unit_def_id = construction.unit_def_id or 0,
+                    icon_path = construction.icon_path or "",
+                    count = 0
+                }
+            end
+            if key ~= 0 then
+                iconMap[key].count = iconMap[key].count + 1
+            end
+        end
+
+        teamData.aggregated_icons = {}
+        for _, iconData in pairs(iconMap) do
+            table.insert(teamData.aggregated_icons, iconData)
+        end
+        table.sort(teamData.aggregated_icons, function(a, b)
+            if a.count == b.count then
+                return a.unit_def_id < b.unit_def_id
+            end
+            return a.count > b.count
+        end)
+
+        table.sort(teamData.active_constructions, function(a, b)
+            return a.progress_percent < b.progress_percent
+        end)
+
+        table.sort(teamData.completed_constructions, function(a, b)
+            return a.completion_time > b.completion_time
+        end)
+
+        local uniqueCompletedMap = {}
+        for _, completed in ipairs(teamData.completed_constructions) do
+            local key = completed.unit_def_id or 0
+            if key ~= 0 and not uniqueCompletedMap[key] then
+                uniqueCompletedMap[key] = {
+                    unit_def_id = completed.unit_def_id or 0,
+                    unit_name = completed.unit_name or "Unknown",
+                    count = 0,
+                    latest_position = completed.position or {x = 0, y = 0, z = 0}
+                }
+            end
+            if key ~= 0 then
+                uniqueCompletedMap[key].count = uniqueCompletedMap[key].count + 1
+                uniqueCompletedMap[key].latest_position = completed.position or {x = 0, y = 0, z = 0}
+            end
+        end
+
+        teamData.unique_completed = {}
+        for _, uniqueCompleted in pairs(uniqueCompletedMap) do
+            table.insert(teamData.unique_completed, uniqueCompleted)
+        end
+        table.sort(teamData.unique_completed, function(a, b)
+            return a.unit_name < b.unit_name
         end)
     end
 
     local teamsArray = {}
     for teamID, teamData in pairs(teamGroups) do
-        table.insert(teamsArray, teamData)
+        if teamData.has_active or teamData.has_completed then
+            table.insert(teamsArray, teamData)
+        end
     end
 
     table.sort(teamsArray, function(a, b)
@@ -631,6 +940,7 @@ function UpdateRMLuiData()
     dm_handle.teams = teamsArray
     dm_handle.constructions = {size = totalConstructions}
 
+    RestoreHoverMenuScrollPositions()
 end
 
 function widget:PlayerChanged(playerID)
@@ -640,6 +950,7 @@ function widget:PlayerChanged(playerID)
     myTeamID = spGetMyTeamID()
 
     trackedConstructions = {}
+    worldLabels = {}
     Scan()
     UpdateRMLuiData()
 end
@@ -655,6 +966,21 @@ end
 
 function widget:UnitFinished(unitID, unitDefID, unitTeam)
     if trackedConstructions[unitID] then
+        local data = trackedConstructions[unitID]
+        local completedData = {
+            unitID = unitID,
+            unitDefID = data.unitDefID,
+            unitName = data.unitName,
+            team = data.team,
+            teamName = data.teamName,
+            teamColor = data.teamColor,
+            position = data.position,
+            completionTime = Spring.GetGameSeconds(),
+            startTime = data.startTime,
+            isDead = false
+        }
+        table.insert(completedConstructions, completedData)
+
         trackedConstructions[unitID] = nil
         UpdateRMLuiData()
     end
@@ -665,9 +991,40 @@ function widget:UnitDestroyed(unitID, unitDefID, unitTeam)
         trackedConstructions[unitID] = nil
         UpdateRMLuiData()
     end
+
+    if selectedUnitsToHighlight[unitID] then
+        selectedUnitsToHighlight[unitID] = nil
+    end
 end
 
 function widget:GameFrame()
+    if dataDirty then
+        UpdateRMLuiData()
+        dataDirty = false
+    end
+
+    if next(selectedUnitsToHighlight) ~= nil then
+        local currentSelection = Spring.GetSelectedUnits()
+        local selectionSet = {}
+        for _, unitID in ipairs(currentSelection) do
+            selectionSet[unitID] = true
+        end
+
+        local stillSelected = false
+        for unitID in pairs(selectedUnitsToHighlight) do
+            if selectionSet[unitID] then
+                stillSelected = true
+                break
+            end
+        end
+
+        if not stillSelected then
+            selectedUnitsToHighlight = {}
+            selectionCenter = nil
+            Spring.Echo("[SCT] Cleared selection highlights")
+        end
+    end
+
     frameCounter = frameCounter + 1
     if frameCounter >= UPDATE_FREQUENCY then
         frameCounter = 0
@@ -681,7 +1038,7 @@ function widget:GameFrame()
         local vsx, vsy = Spring.GetViewGeometry()
         local cssY = vsy - newY
 
-        newX = math.max(0, math.min(newX, vsx - 130))
+        newX = math.max(0, math.min(newX, vsx - 150))
         cssY = math.max(0, math.min(cssY, vsy - 45))
 
         if math.abs(newX - widgetPosX) > 1 or math.abs(cssY - widgetPosY) > 1 then
@@ -693,29 +1050,135 @@ function widget:GameFrame()
 end
 
 function UpdateConstructionProgress()
-    local updated = false
+    local hasChanges = false
     for unitID, data in pairs(trackedConstructions) do
         local health, maxHealth, _, _, buildProgress = spGetUnitHealth(unitID)
         if buildProgress then
             if buildProgress >= 1.0 then
                 trackedConstructions[unitID] = nil
-                updated = true
+                hasChanges = true
             else
-                if math.abs(data.lastProgress - buildProgress) > 0.01 then
+                if math.abs(data.lastProgress - buildProgress) > 0.05 then
                     data.lastProgress = buildProgress
-                    updated = true
+                    hasChanges = true
                 end
             end
         else
             trackedConstructions[unitID] = nil
-            updated = true
+            hasChanges = true
         end
     end
 
-    if updated then
-        UpdateRMLuiData()
+    local i = 1
+    while i <= #completedConstructions do
+        local completed = completedConstructions[i]
+        if not Spring.ValidUnitID(completed.unitID) then
+            table.remove(completedConstructions, i)
+            hasChanges = true
+        else
+            i = i + 1
+        end
+    end
+
+    if hasChanges then
+        dataDirty = true
     end
 end
+
+function widget:DrawScreen()
+    if Spring.IsGUIHidden() or next(selectedUnitsToHighlight) == nil then
+        return
+    end
+
+    animationTime = animationTime + 0.02
+
+    local teamColor = nil
+    local unitName = ""
+    local unitCount = 0
+    local units = {}
+    local screenPositions = {}
+
+    for unitID, highlight in pairs(selectedUnitsToHighlight) do
+        if Spring.ValidUnitID(unitID) then
+            local x, y, z = Spring.GetUnitPosition(unitID)
+            if x then
+                teamColor = highlight.teamColor
+                unitName = highlight.unitName
+                unitCount = unitCount + 1
+
+                local sx, sy, sz = Spring.WorldToScreenCoords(x, y, z)
+                if sz and sz < 1 then  -- Only if in front of camera
+                    table.insert(units, {x = x, y = y, z = z, sx = sx, sy = sy})
+                    table.insert(screenPositions, {sx = sx, sy = sy})
+                end
+            end
+        end
+    end
+
+    if teamColor and unitCount > 0 and #screenPositions > 0 then
+        local avgSx, avgSy = 0, 0
+        for _, pos in ipairs(screenPositions) do
+            avgSx = avgSx + pos.sx
+            avgSy = avgSy + pos.sy
+        end
+        avgSx = avgSx / #screenPositions
+        avgSy = avgSy / #screenPositions
+
+        local billboardOffsetY = 200
+        avgSy = avgSy + billboardOffsetY
+
+        gl.LineWidth(2)
+        gl.Color(teamColor[1], teamColor[2], teamColor[3], 0.5)
+        for _, unit in ipairs(units) do
+            gl.BeginEnd(GL.LINES, function()
+                gl.Vertex(avgSx, avgSy)
+                gl.Vertex(unit.sx, unit.sy)
+            end)
+        end
+
+        gl.LineWidth(2)
+        gl.Color(teamColor[1], teamColor[2], teamColor[3], 0.8)
+        for _, unit in ipairs(units) do
+            local radius = 8
+            gl.BeginEnd(GL.LINE_LOOP, function()
+                for i = 0, 15 do
+                    local angle = (i / 16) * math.pi * 2
+                    gl.Vertex(unit.sx + math.cos(angle) * radius, unit.sy + math.sin(angle) * radius)
+                end
+            end)
+        end
+
+        local fontSize = 18
+        local quantityText = tostring(unitCount)
+        local padding = 30
+
+        local nameWidth = #unitName * fontSize * 0.6
+        local qtyWidth = #quantityText * (fontSize + 4) * 0.6
+        local panelWidth = math.max(nameWidth, qtyWidth) + padding * 2
+        panelWidth = math.max(panelWidth, 180)
+        local panelHeight = 95
+
+        local px = avgSx - panelWidth/2
+        local py = avgSy - panelHeight/2
+
+        gl.Color(0.0, 0.0, 0.0, 0.9)
+        gl.Rect(px, py, px + panelWidth, py + panelHeight)
+
+        local borderWidth = 4
+        gl.Color(teamColor[1], teamColor[2], teamColor[3], 0.95)
+        gl.Rect(px, py, px + borderWidth, py + panelHeight)
+
+        gl.Color(1, 1, 1, 1)
+        gl.Text(unitName, avgSx, avgSy + 18, fontSize, "cvO")
+
+        local qtySize = fontSize + 6
+        gl.Color(teamColor[1] * 1.2, teamColor[2] * 1.2, teamColor[3] * 1.2, 1.0)
+        gl.Text(quantityText, avgSx, avgSy - 20, qtySize, "cvO")
+
+        gl.LineWidth(1)
+    end
+end
+
 
 function widget:Shutdown()
     Spring.Echo(WIDGET_NAME .. ": Shutting down widget...")
@@ -735,6 +1198,7 @@ function widget:Shutdown()
 
     widget.rmlContext = nil
     trackedConstructions = {}
+    worldLabels = {}
 
     Spring.Echo(WIDGET_NAME .. ": Shutdown complete")
 end
