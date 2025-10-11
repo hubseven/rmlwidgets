@@ -1,37 +1,17 @@
 /* Strategic Construction Tracker */
 
-body, div,
-h1, h2, h3, h4,
-h5, h6, p,
-hr, pre,
-tabset tabs
-{ display: block; }
-
-h1 { font-size: 2em; margin: .67em 0; }
-h2 { font-size: 1.5em; margin: .75em 0; }
-h3 { font-size: 1.17em; margin: .83em 0; }
-h4, p { margin: 1.12em 0; }
-h5 { font-size: .83em; margin: 1.5em 0; }
-h6 { font-size: .75em; margin: 1.67em 0; }
-h1, h2, h3, h4, h5, h6, strong { font-weight: bold; }
-em { font-style: italic; }
-pre { white-space: pre; }
-hr { border-width: 1dp; }
-table { box-sizing: border-box; display: table; }
-tr { box-sizing: border-box; display: table-row; }
-td { box-sizing: border-box; display: table-cell; }
-col { box-sizing: border-box; display: table-column; }
-colgroup  { display: table-column-group; }
-thead, tbody, tfoot { display: table-row-group; }
+body, div {
+    display: block;
+}
 
 #strategic-construction-tracker-widget {
-    position: absolute;
     width: 150dp;
     min-height: 45dp;
     display: flex;
 }
 
 .panel {
+    position: absolute;
     width: 150dp;
     min-height: 45dp;
     background-color: #0D0D0DEB;
@@ -45,6 +25,13 @@ thead, tbody, tfoot { display: table-row-group; }
     justify-content: space-between;
     align-items: center;
     padding: 0 8dp;
+}
+
+.title-bar handle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex: 1;
     cursor: move;
 }
 
@@ -268,38 +255,108 @@ thead, tbody, tfoot { display: table-row-group; }
     text-align: right;
 }
 
-/* Hover Menu styles */
-.hover-menu {
+/* Hover Menu Container */
+.hover-menu-container {
     display: none;
     position: absolute;
     left: 100%;
-    top: -4dp;
+    top: -40dp;
     margin-left: 0dp;
     background-color: #0D0D0DEB;
     border-width: 1dp;
     border-color: #1A1F26;
-    border-left-width: 3dp;
-    padding: 8dp;
-    padding-left: 8dp;
     min-width: 220dp;
     max-width: 280dp;
-    max-height: 400dp;
-    overflow-y: auto;
     z-index: 1000;
     flex-direction: column;
 }
 
-.team-row:hover .hover-menu {
+.team-row:hover .hover-menu-container {
     display: flex;
 }
 
-.hover-menu:hover {
+.hover-menu-container:hover {
+    display: flex;
+}
+
+/* Hover Menu Header */
+.hover-menu-header {
+    background-color: #151B22;
+    border-left-width: 3dp;
+    padding: 6dp 8dp;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.hover-menu-team-name {
+    color: #CCE6FF;
+    font-size: 12dp;
+    font-weight: bold;
+    flex: 1;
+}
+
+/* Commander Info */
+.commander-info {
+    display: flex;
+    align-items: center;
+    gap: 4dp;
+    cursor: pointer;
+    padding: 2dp 4dp;
+    background-color: #0F1419;
+    border-radius: 2dp;
+}
+
+.commander-info:hover {
+    background-color: #1A2129;
+}
+
+.commander-icon {
+    width: 20dp;
+    height: 20dp;
+    flex-shrink: 0;
+}
+
+.commander-health-bar {
+    width: 40dp;
+    height: 6dp;
+    background-color: #0D0D0D;
+    border-width: 1dp;
+    border-color: #1A1F26;
+    position: relative;
+    overflow: hidden;
+}
+
+.commander-health-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background-color: #4CAF50;
+    transition: width 0.3s;
+}
+
+/* Hover Menu Content (scrollable) */
+.hover-menu-content {
+    border-left-width: 3dp;
+    padding: 8dp;
+    padding-left: 8dp;
+    max-height: 360dp;
+    overflow-y: auto;
+    flex-direction: column;
+}
+
+.team-row:hover .hover-menu-content,
+.hover-menu-content:hover {
     display: flex;
 }
 
 /* Hover Menu Sections */
 .hover-menu-section {
     margin-bottom: 8dp;
+    flex-shrink: 0;
+    min-height: 0;
 }
 
 .hover-menu-section:last-child {
@@ -337,6 +394,8 @@ thead, tbody, tfoot { display: table-row-group; }
     margin-bottom: 2dp;
     cursor: pointer;
     background-color: #0F1419;
+    flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 .construction-detail:hover {
@@ -382,12 +441,6 @@ thead, tbody, tfoot { display: table-row-group; }
 .construction-detail.completed:hover {
     opacity: 0.9;
     background-color: #0F1419;
-}
-
-.completion-checkmark {
-    color: #4A90E2;
-    font-size: 14dp;
-    font-weight: bold;
 }
 
 .completed-type-count {
@@ -494,4 +547,36 @@ thead, tbody, tfoot { display: table-row-group; }
 
 .category-filter.active .category-progress-fill {
     background-color: #4A90E2;
+}
+
+/* Scrollbar styles for hover menu content */
+.hover-menu-content scrollbarvertical {
+    width: 10dp;
+    margin-right: 2dp;
+}
+
+.hover-menu-content scrollbarvertical slidertrack {
+    background-color: #0F1419;
+    border-width: 1dp;
+    border-color: #1A1F26;
+}
+
+.hover-menu-content scrollbarvertical sliderbar {
+    background-color: #2A3340;
+    border-width: 1dp;
+    border-color: #3A4350;
+    min-height: 20dp;
+}
+
+.hover-menu-content scrollbarvertical sliderbar:hover {
+    background-color: #3A4350;
+}
+
+.hover-menu-content scrollbarvertical sliderbar:active {
+    background-color: #4A5360;
+}
+
+.hover-menu-content scrollbarvertical sliderarrowdec,
+.hover-menu-content scrollbarvertical sliderarrowinc {
+    display: none;
 }
