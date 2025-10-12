@@ -31,11 +31,6 @@
 
         <!-- Main Content Area -->
         <div class="content-area" data-if="!collapsed">
-            <!-- Empty State -->
-            <div id="empty-state" class="empty-state" data-if="constructions.size == 0">
-                <span class="empty-text">None</span>
-            </div>
-
             <!-- Team List -->
             <div id="team-list" class="team-list">
                 <div data-for="team : teams" class="team-row" id="team-row-{{team.id}}">
