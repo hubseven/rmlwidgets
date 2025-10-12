@@ -471,13 +471,20 @@ function widget:SelectConstruction(event)
         return false
     end
 
-    local unitID = tonumber(element:GetAttribute("data-unit-id"))
-    local isCompleted = element:GetAttribute("data-is-completed") == "true"
+    -- Get hidden span elements by class name - NOTE: Lua arrays are 1-indexed!
+    local unitIDSpan = element:GetElementsByClassName("unit-id")[1]
+    local unitDefIDSpan = element:GetElementsByClassName("unit-def-id")[1]
+    local teamIDSpan = element:GetElementsByClassName("team-id")[1]
+    local isCompletedSpan = element:GetElementsByClassName("is-completed")[1]
+
+    local unitID = unitIDSpan and tonumber(unitIDSpan.inner_rml) or nil
+    local unitDefID = unitDefIDSpan and tonumber(unitDefIDSpan.inner_rml) or nil
+    local teamID = teamIDSpan and tonumber(teamIDSpan.inner_rml) or nil
+    local isCompletedText = isCompletedSpan and isCompletedSpan.inner_rml or "false"
+    local isCompleted = isCompletedText == "true"
 
     if isCompleted and not unitID then
-        local unitDefID = tonumber(element:GetAttribute("data-unit-def-id"))
-        local teamID = tonumber(element:GetAttribute("data-team-id"))
-
+        -- Completed construction - select all units of this type
         if unitDefID and teamID then
             selectedUnitsToHighlight = {}
             local validUnitIDs = {}
@@ -730,12 +737,12 @@ function UpdateRMLuiData()
             end
 
             local constructionData = {
-                unit_id = data.unitID,
+                unit_id = data.unitID or 0,
                 unit_name = unitName or "Unknown",
-                unit_def_id = data.unitDefID,
-                icon_path = iconPath,
-                progress_percent = progressPercent,
-                progress_squares = progressSquares,
+                unit_def_id = data.unitDefID or 0,
+                icon_path = iconPath or "",
+                progress_percent = progressPercent or 0,
+                progress_squares = progressSquares or {},
                 is_completed = false
             }
 
@@ -758,10 +765,10 @@ function UpdateRMLuiData()
         local completionTime = completedConstructionsHistory[data.unitID] or 0
 
         table.insert(teamGroups[data.team].completed_constructions, {
-            unit_id = data.unitID,
+            unit_id = data.unitID or 0,
             unit_name = unitName or "Unknown",
-            unit_def_id = data.unitDefID,
-            completion_time = completionTime
+            unit_def_id = data.unitDefID or 0,
+            completion_time = completionTime or 0
         })
     end
 

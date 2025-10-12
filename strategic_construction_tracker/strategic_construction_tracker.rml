@@ -80,7 +80,9 @@
                             <!-- Active Constructions Section -->
                             <div class="hover-menu-section" data-if="team.has_active">
                                 <div class="hover-menu-section-title">Active</div>
-                                <div data-for="construction : team.active_constructions" class="construction-detail" data-attr-data-unit-id="construction.unit_id" data-attr-data-is-completed="construction.is_completed" onclick="widget:SelectConstruction(event)">
+                                <div data-for="construction : team.active_constructions" class="construction-detail" onclick="widget:SelectConstruction(event)">
+                                    <span class="unit-id" style="display: none;">{{construction.unit_id}}</span>
+                                    <span class="is-completed" style="display: none;">{{construction.is_completed}}</span>
                                     <texture class="detail-buildpic" data-attr-src="'#' + construction.unit_def_id"/>
                                     <div class="detail-info">
                                         <span class="detail-unit-name">{{construction.unit_name}}</span>
@@ -107,7 +109,10 @@
                                     <span class="completed-count">{{team.completed_count}}</span>
                                 </div>
                                 <!-- Unique completed constructions -->
-                                <div data-for="construction : team.unique_completed" class="construction-detail completed" data-attr-data-unit-def-id="construction.unit_def_id" data-attr-data-team-id="team.id" data-attr-data-is-completed="'true'" onclick="widget:SelectConstruction(event)">
+                                <div data-for="construction : team.unique_completed" class="construction-detail completed" onclick="widget:SelectConstruction(event)">
+                                    <span class="unit-def-id" style="display: none;">{{construction.unit_def_id}}</span>
+                                    <span class="team-id" style="display: none;">{{team.id}}</span>
+                                    <span class="is-completed" style="display: none;">true</span>
                                     <texture class="detail-buildpic" data-attr-src="'#' + construction.unit_def_id"/>
                                     <div class="detail-info">
                                         <span class="detail-unit-name">{{construction.unit_name}}</span>
