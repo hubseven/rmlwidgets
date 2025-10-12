@@ -870,7 +870,6 @@ function UpdateRMLuiData()
         return a.id < b.id
     end)
 
-    dm_handle.teams = {}
     dm_handle.teams = teamsArray
     dm_handle.constructions = {size = totalConstructions}
 
