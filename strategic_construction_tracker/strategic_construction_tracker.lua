@@ -192,6 +192,8 @@ local frameCounter = 0
 local gameStarted = false
 local lastUIHiddenState = false
 local completedConstructionsHistory = {}
+local trackedConstructions = {}  -- [unitID] = {unitID, unitDefID, team, buildProgress}
+local trackedCommanders = {}     -- [teamID] = {unitID, unitDefID}
 
 
 -- Position state
@@ -294,6 +296,42 @@ local function BuildCategoriesArray(includeProgress)
     return categories
 end
 
+local function InitializeTrackingTables()
+    trackedConstructions = {}
+    trackedCommanders = {}
+
+    local allUnits = spGetAllUnits()
+    for _, unitID in ipairs(allUnits) do
+        local unitDefID = spGetUnitDefID(unitID)
+        if unitDefID then
+            local unitDef = UnitDefs[unitDefID]
+            local unitTeam = spGetUnitTeam(unitID)
+
+            if ShouldTrackUnit(unitID, unitTeam) then
+                if unitDef and TRACKED_BUILDINGS[unitDef.name] then
+                    trackedConstructions[unitID] = {
+                        unitID = unitID,
+                        unitDefID = unitDefID,
+                        team = unitTeam,
+                        buildProgress = 0
+                    }
+                end
+
+                if IsCommander(unitDefID) then
+                    trackedCommanders[unitTeam] = {
+                        unitID = unitID,
+                        unitDefID = unitDefID
+                    }
+                end
+            end
+        end
+    end
+end
+
+local function RebuildTrackingTables()
+    InitializeTrackingTables()
+end
+
 
 function widget:Initialize()
     Spring.Echo(WIDGET_NAME .. ": Initializing widget...")
@@ -354,6 +392,7 @@ function widget:Initialize()
     end
 
     UpdateDocumentPosition()
+    InitializeTrackingTables()
 
     Spring.Echo(WIDGET_NAME .. ": Widget initialized successfully")
 
@@ -541,23 +580,17 @@ end
 
 function GetCommanderInfo()
     local commanders = {}
-    local allUnits = spGetAllUnits()
 
-    for _, unitID in ipairs(allUnits) do
-        local unitDefID = spGetUnitDefID(unitID)
-        if unitDefID and IsCommander(unitDefID) then
-            local unitTeam = spGetUnitTeam(unitID)
+    for teamID, data in pairs(trackedCommanders) do
+        if Spring.ValidUnitID(data.unitID) then
+            local health, maxHealth = spGetUnitHealth(data.unitID)
 
-            if ShouldTrackUnit(unitID, unitTeam) then
-                local health, maxHealth = spGetUnitHealth(unitID)
-
-                if health and maxHealth and maxHealth > 0 then
-                    commanders[unitTeam] = {
-                        unitID = unitID,
-                        unitDefID = unitDefID,
-                        health = health / maxHealth
-                    }
-                end
+            if health and maxHealth and maxHealth > 0 then
+                commanders[teamID] = {
+                    unitID = data.unitID,
+                    unitDefID = data.unitDefID,
+                    health = health / maxHealth
+                }
             end
         end
     end
@@ -569,36 +602,27 @@ function GetCurrentConstructions()
     local activeConstructions = {}
     local completedConstructions = {}
 
-    local allUnits = spGetAllUnits()
+    for unitID, data in pairs(trackedConstructions) do
+        if Spring.ValidUnitID(unitID) then
+            local _, _, _, _, buildProgress = spGetUnitHealth(unitID)
 
-    for _, unitID in ipairs(allUnits) do
-        local unitDefID = spGetUnitDefID(unitID)
-        if unitDefID then
-            local unitDef = UnitDefs[unitDefID]
+            if buildProgress then
+                data.buildProgress = buildProgress
 
-            if unitDef and TRACKED_BUILDINGS[unitDef.name] then
-                local unitTeam = spGetUnitTeam(unitID)
+                local constructionData = {
+                    unitID = data.unitID,
+                    unitDefID = data.unitDefID,
+                    team = data.team,
+                    buildProgress = buildProgress
+                }
 
-                if ShouldTrackUnit(unitID, unitTeam) then
-                    local _, _, _, _, buildProgress = spGetUnitHealth(unitID)
-
-                    if buildProgress then
-                        local constructionData = {
-                            unitID = unitID,
-                            unitDefID = unitDefID,
-                            team = unitTeam,
-                            buildProgress = buildProgress
-                        }
-
-                        if buildProgress < 1.0 then
-                            table.insert(activeConstructions, constructionData)
-                        else
-                            if not completedConstructionsHistory[unitID] then
-                                completedConstructionsHistory[unitID] = Spring.GetGameSeconds()
-                            end
-                            table.insert(completedConstructions, constructionData)
-                        end
+                if buildProgress < 1.0 then
+                    table.insert(activeConstructions, constructionData)
+                else
+                    if not completedConstructionsHistory[unitID] then
+                        completedConstructionsHistory[unitID] = Spring.GetGameSeconds()
                     end
+                    table.insert(completedConstructions, constructionData)
                 end
             end
         end
@@ -719,7 +743,6 @@ function UpdateRMLuiData()
     local totalConstructions = 0
 
     for _, data in ipairs(activeConstructions) do
-        -- Check category filter
         local unitCategory = GetUnitCategory(data.unitDefID)
         if not unitCategory or activeCategories[unitCategory] then
             totalConstructions = totalConstructions + 1
@@ -888,15 +911,58 @@ function widget:PlayerChanged(playerID)
     isSpectator = spec
     fullView = fullV
     myTeamID = spGetMyTeamID()
+
+    RebuildTrackingTables()
+
     dataDirty = true
 end
 
+function widget:UnitCreated(unitID, unitDefID, unitTeam, builderID)
+    local unitDef = UnitDefs[unitDefID]
+
+    if unitDef and TRACKED_BUILDINGS[unitDef.name] then
+        if ShouldTrackUnit(unitID, unitTeam) then
+            trackedConstructions[unitID] = {
+                unitID = unitID,
+                unitDefID = unitDefID,
+                team = unitTeam,
+                buildProgress = 0
+            }
+            dataDirty = true
+        end
+    end
+
+    if IsCommander(unitDefID) then
+        if ShouldTrackUnit(unitID, unitTeam) then
+            trackedCommanders[unitTeam] = {
+                unitID = unitID,
+                unitDefID = unitDefID
+            }
+            dataDirty = true
+        end
+    end
+end
+
+function widget:UnitFinished(unitID, unitDefID, unitTeam)
+    if trackedConstructions[unitID] then
+        dataDirty = true
+    end
+end
+
 function widget:UnitDestroyed(unitID, unitDefID, unitTeam)
+    if trackedConstructions[unitID] then
+        trackedConstructions[unitID] = nil
+        dataDirty = true
+    end
+
+    if trackedCommanders[unitTeam] and trackedCommanders[unitTeam].unitID == unitID then
+        trackedCommanders[unitTeam] = nil
+        dataDirty = true
+    end
 
     if completedConstructionsHistory[unitID] then
         completedConstructionsHistory[unitID] = nil
     end
-
 
     if selectedUnitsToHighlight[unitID] then
         selectedUnitsToHighlight[unitID] = nil

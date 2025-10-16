@@ -68,7 +68,9 @@
                         <div class="hover-menu-header" data-style-border-left-color="team.accent_color">
                             <span class="hover-menu-team-name">{{team.name}}</span>
                             <!-- Commander Info -->
-                            <div class="commander-info" data-if="team.has_commander" data-attr-data-unit-id="team.commander_id" onclick="widget:SelectConstruction(event)">
+                            <div class="commander-info" data-if="team.has_commander" onclick="widget:SelectConstruction(event)">
+                                <span class="unit-id" style="display: none;">{{team.commander_id}}</span>
+                                <span class="is-completed" style="display: none;">false</span>
                                 <texture class="commander-icon" data-attr-src="'#' + team.commander_def_id"/>
                                 <div class="commander-health-bar">
                                     <div class="commander-health-fill" data-attr-style="'width: ' + (team.commander_health * 100) + '%'"></div>
